@@ -86,3 +86,39 @@ class dlgAddDevice(wx.Dialog):
     def __del__(self):
         pass
 
+
+###########################################################################
+## Class ConnectDialog
+###########################################################################
+
+class ConnectDialog(wx.Dialog):
+    def __init__(self, parent):
+        wx.Dialog.__init__(self, parent, id=wx.ID_ANY, title=u"Select a decive to connect to", pos=wx.DefaultPosition,
+                           size=wx.Size(601, 292), style=wx.DEFAULT_DIALOG_STYLE)
+
+        self.SetSizeHintsSz(wx.DefaultSize, wx.DefaultSize)
+
+        bSizer7 = wx.BoxSizer(wx.VERTICAL)
+
+        self.lstAdapters = wx.ListCtrl(self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, wx.LC_REPORT)
+        bSizer7.Add(self.lstAdapters, 1, wx.ALL | wx.EXPAND, 5)
+
+        gSizer1 = wx.GridSizer(0, 2, 0, 0)
+
+        self.btnOK = wx.Button(self, wx.ID_OK, u"OK", wx.DefaultPosition, wx.DefaultSize, 0)
+        gSizer1.Add(self.btnOK, 0, wx.ALL | wx.ALIGN_RIGHT, 5)
+
+        self.btnCancel = wx.Button(self, wx.ID_CANCEL, u"Cancel", wx.DefaultPosition, wx.DefaultSize, 0)
+        gSizer1.Add(self.btnCancel, 0, wx.ALL, 5)
+
+        bSizer7.Add(gSizer1, 0, wx.EXPAND, 5)
+
+        self.SetSizer(bSizer7)
+        self.Layout()
+
+        self.Centre(wx.BOTH)
+
+    def __del__(self):
+        pass
+
+

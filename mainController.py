@@ -2,13 +2,14 @@ import ctypes
 import os
 
 from mainView import MainFrame
-from CustomControlls import DiagController, AddController
+from CustomControlls import DiagController, AddController, ConnectDialog
 
 from cStringIO import StringIO
 import sys
 import wx
 import API
 import threading
+import requests
 
 sys.stdout = mystdout = StringIO()
 
@@ -20,20 +21,21 @@ class Controller:
         self.mainWindow.timer1.Start(1000)
         self.mainWindow.statusBar1.SetStatusText('No connected Device', 0)
 
-        self.mainWindow.lstAdapters.InsertColumn(0, 'Number', width=wx.COL_WIDTH_AUTOSIZE)
+        self.mainWindow.lstAdapters.InsertColumn(0, 'Number', width=35)
         self.mainWindow.lstAdapters.InsertColumn(1, 'Name', width=100)
         self.mainWindow.lstAdapters.InsertColumn(2, 'IP Address', width=100)
         self.mainWindow.lstAdapters.InsertColumn(3, 'Capturing', width=wx.COL_WIDTH_AUTOSIZE)
 
-        self.mainWindow.lstDevices.InsertColumn(0, 'Name', width=100)
-        self.mainWindow.lstDevices.InsertColumn(1, 'IP Address', width=100)
-        self.mainWindow.lstDevices.InsertColumn(1, 'Mac Address', width=100)
+        self.mainWindow.lstDevices.InsertColumn(0, 'Remote IP', width=100)
+        self.mainWindow.lstDevices.InsertColumn(1, 'Virtual IP Address', width=100)
+        self.mainWindow.lstDevices.InsertColumn(2, 'Virtual Mac Address', width=125)
 
         # setup bindings
         self.mainWindow.Bind(wx.EVT_MENU, self.showDiag, self.mainWindow.menuShowLog)
         self.mainWindow.Bind(wx.EVT_TIMER, self.update, self.mainWindow.timer1)
         self.mainWindow.Bind(wx.EVT_BUTTON, self.createNewAdapter, self.mainWindow.btnCreate)
         self.mainWindow.Bind(wx.EVT_BUTTON, self.scan, self.mainWindow.btnRefresh)
+        self.mainWindow.Bind(wx.EVT_CONTEXT_MENU, self.onRClick, self.mainWindow.lstDevices)
 
         # class vars
         self.scanning = False
@@ -61,6 +63,36 @@ class Controller:
 
     def startCapture(self, event):
         pass
+
+    def onRClick(self, event):
+        if self.mainWindow.lstDevices.GetNextSelected(-1) < 0: return
+
+        if not hasattr(self, 'popupID1'):
+            self.popupID1 = wx.NewId()
+            self.mainWindow.Bind(wx.EVT_MENU, self.onConnectClicked, id=self.popupID1)
+
+        menu = wx.Menu()
+        menuItemOne = menu.Append(self.popupID1, "connect to...")
+
+        self.mainWindow.PopupMenu(menu)
+        menu.Destroy()
+
+    def onConnectClicked(self, event):
+        currentItem = self.mainWindow.lstDevices.GetNextSelected(-1)
+        dlg = ConnectDialog(self.mainWindow)
+
+        dlg.lstAdapters.InsertColumn(0, 'Number', width=35)
+        dlg.lstAdapters.InsertColumn(1, 'Name', width=100)
+        dlg.lstAdapters.InsertColumn(2, 'IP Address', width=100)
+        dlg.lstAdapters.InsertColumn(3, 'Capturing', width=wx.COL_WIDTH_AUTOSIZE)
+
+        for itemIndex in xrange(self.mainWindow.lstAdapters.GetItemCount()):
+            for colIndex in xrange(self.mainWindow.lstAdapters.GetColumnCount()):
+                curItem = self.mainWindow.lstAdapters.GetItem(itemIndex, colIndex)
+                dlg.lstAdapters.InsertItem(curItem)
+
+        if dlg.ShowModal() == wx.ID_OK:
+            pass
 
     def update(self, event):
         if not self.scanning: return
@@ -90,7 +122,20 @@ class Controller:
         self.mainWindow.statusBar1.SetStatusText('', 2)
         self.scanning = False
         self.mainWindow.btnRefresh.SetLabel('Refresh List')
+        if not hosts: return
+
+        # parse host data
+        # FIXME: code set up for assuming only one virtual adapter on remote at the moment
         print hosts
+        remoteIP = hosts.keys()[0]
+        virtualIP = hosts.values()[0].values()[0].keys()[0]
+        virtualMAC = hosts.values()[0].values()[0].values()[0]
+
+        # Add host to list
+        index = self.mainWindow.lstDevices.GetItemCount()
+        self.mainWindow.lstDevices.InsertStringItem(index, remoteIP)
+        self.mainWindow.lstDevices.SetStringItem(index, 1, virtualIP)
+        self.mainWindow.lstDevices.SetStringItem(index, 2, virtualMAC)
 
     def createNewAdapter(self, event):
         addDevicedlg = AddController(self.adapterNameDict, self.mainWindow)
@@ -112,7 +157,6 @@ class Controller:
             self.mainWindow.lstAdapters.SetStringItem(index, 3, 'False')
 
             self.adapterNameDict[name] = True
-
 
     # Separate thread funcs --------------------------------------------------------------------------------------------
     def _scan(self):
@@ -179,5 +223,7 @@ def runAsAdmin(cmdLine=None, wait=True):
         #print "Process handle %s returned code %s" % (procHandle, rc)
     else:
         rc = None
+
+    exit()
 
     return rc
