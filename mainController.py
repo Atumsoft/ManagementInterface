@@ -1,4 +1,5 @@
 import ctypes
+import json
 import os
 
 from mainView import MainFrame
@@ -40,6 +41,7 @@ class Controller:
         # class vars
         self.scanning = False
         self.tunTapDict = {}
+        self.hostsDict = {}
 
         # networking vars
         self.networkGatewayIP, self.networkIface = API.AtumsoftUtils.findGateWay()
@@ -87,12 +89,26 @@ class Controller:
         dlg.lstAdapters.InsertColumn(3, 'Capturing', width=wx.COL_WIDTH_AUTOSIZE)
 
         for itemIndex in xrange(self.mainWindow.lstAdapters.GetItemCount()):
+            itemList = []
             for colIndex in xrange(self.mainWindow.lstAdapters.GetColumnCount()):
-                curItem = self.mainWindow.lstAdapters.GetItem(itemIndex, colIndex)
-                dlg.lstAdapters.InsertItem(curItem)
+                itemList.append( self.mainWindow.lstAdapters.GetItem(itemIndex, colIndex) )
+
+            # FIXME: I don't like hard coding in the column indexes
+            index = dlg.lstAdapters.InsertItem(itemList[0])
+            dlg.lstAdapters.SetItem(itemList[1])
+            dlg.lstAdapters.SetItem(itemList[2])
+            dlg.lstAdapters.SetItem(itemList[3])
 
         if dlg.ShowModal() == wx.ID_OK:
-            pass
+            virtualAdapterIndex = dlg.lstAdapters.GetNextSelected(-1)
+            remoteHost = self.hostsDict[currentItem]['hostIP']
+            virtualAdapter = self.tunTapDict[virtualAdapterIndex]
+            data = virtualAdapter.adapterInfo
+            print 'data: %s' % data
+
+            r = requests.post('http://%s:5000/connect' % remoteHost, data=json.dumps(data))
+            if r.status_code != 200: print 'error connecting to host at: %s' % remoteHost; return
+
 
     def update(self, event):
         if not self.scanning: return
@@ -137,6 +153,13 @@ class Controller:
         self.mainWindow.lstDevices.SetStringItem(index, 1, virtualIP)
         self.mainWindow.lstDevices.SetStringItem(index, 2, virtualMAC)
 
+        # add host to dict
+        self.hostsDict[index] = {
+            'hostIP'    : remoteIP,
+            'virtualIP' : virtualIP,
+            'virtualMAC': virtualMAC,
+        }
+
     def createNewAdapter(self, event):
         addDevicedlg = AddController(self.adapterNameDict, self.mainWindow)
         if addDevicedlg.ShowModal() == wx.ID_OK:
@@ -147,7 +170,6 @@ class Controller:
             tunTap = API.AtumsoftGeneric.AtumsoftGeneric()  # isVirtual=True, iface='enp0s25')
             tunTap.createTunTapAdapter(name=name, ipAddress=ipAddr)
             tunTap.openTunTap()
-            self.tunTapDict[name] = tunTap
 
             # add to list
             index = self.mainWindow.lstAdapters.GetItemCount()
@@ -157,6 +179,7 @@ class Controller:
             self.mainWindow.lstAdapters.SetStringItem(index, 3, 'False')
 
             self.adapterNameDict[name] = True
+            self.tunTapDict[index] = tunTap
 
     # Separate thread funcs --------------------------------------------------------------------------------------------
     def _scan(self):
