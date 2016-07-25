@@ -17,6 +17,8 @@ class DiagController:
         self.update()
 
     def update(self, event=None):
+        curVal = self.window.txtOutput.GetValue()
+        if curVal == self.stdout.getvalue: return
         self.window.txtOutput.SetValue(self.stdout.getvalue())
 
 

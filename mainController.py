@@ -1,7 +1,9 @@
+import ast
 import ctypes
 import json
 import os
 
+import thread
 from mainView import MainFrame
 from CustomControlls import DiagController, AddController, ConnectDialog
 
@@ -109,6 +111,9 @@ class Controller:
             r = requests.post('http://%s:5000/connect' % remoteHost, data=json.dumps(data))
             if r.status_code != 200: print 'error connecting to host at: %s' % remoteHost; return
 
+            info = requests.get('http://%s:5000/getinfo' % remoteHost)
+            info = ast.literal_eval(info.json())
+            thread.start_new_thread(self._startCapturing, (virtualAdapter, info, remoteHost))
 
     def update(self, event):
         if not self.scanning: return
@@ -185,6 +190,9 @@ class Controller:
     def _scan(self):
         hosts = API.AtumsoftUtils.findHosts(self.networkIfaceIP)
         wx.CallAfter(self.returnHosts, hosts=hosts)
+
+    def _startCapturing(self, virtualAdapter, info, host):
+        virtualAdapter.startCapture(activeHosts={host: {'address': info}})
 
 
 # Helper functions to check for admin privileges on run ================================================================
