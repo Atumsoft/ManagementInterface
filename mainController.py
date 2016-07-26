@@ -2,8 +2,12 @@ import ast
 import ctypes
 import json
 import os
+import socket
 
 import thread
+
+import subprocess
+
 from mainView import MainFrame
 from CustomControlls import DiagController, AddController, ConnectDialog
 
@@ -65,9 +69,6 @@ class Controller:
     def exit(self):
         exit(0)
 
-    def startCapture(self, event):
-        pass
-
     def onRClick(self, event):
         if self.mainWindow.lstDevices.GetNextSelected(-1) < 0: return
 
@@ -113,6 +114,8 @@ class Controller:
 
             info = requests.get('http://%s:5000/getinfo' % remoteHost)
             info = ast.literal_eval(info.json())
+            print info
+            print remoteHost
             thread.start_new_thread(self._startCapturing, (virtualAdapter, info, remoteHost))
 
     def update(self, event):
@@ -171,10 +174,15 @@ class Controller:
             ipAddr = addDevicedlg.window.txtIP.GetValue()
             name = addDevicedlg.window.txtName.GetValue()
 
+            # if this is the first adapter, make sure no other virtuals exist (potentially from a bad shutdown):
+            if not self.tunTapDict:
+                command = API.AtumsoftWindows.REMOVE_ALL_TAP_COMMAND
+                proc = subprocess.Popen(command, stdout=subprocess.PIPE)
+                print proc.communicate()[0]
+
             # create device
-            tunTap = API.AtumsoftGeneric.AtumsoftGeneric()  # isVirtual=True, iface='enp0s25')
-            tunTap.createTunTapAdapter(name=name, ipAddress=ipAddr)
-            tunTap.openTunTap()
+            self.mainWindow.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
+            thread.start_new_thread(self._createTunTap, (name, ipAddr))
 
             # add to list
             index = self.mainWindow.lstAdapters.GetItemCount()
@@ -184,9 +192,18 @@ class Controller:
             self.mainWindow.lstAdapters.SetStringItem(index, 3, 'False')
 
             self.adapterNameDict[name] = True
-            self.tunTapDict[index] = tunTap
+
+    def finishCreatingTunTap(self, tunTap):
+        self.tunTapDict[self.mainWindow.lstAdapters.GetItemCount()] = tunTap
+        self.mainWindow.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))
 
     # Separate thread funcs --------------------------------------------------------------------------------------------
+    def _createTunTap(self, name, ipAddr):
+        tunTap = API.AtumsoftGeneric.AtumsoftGeneric()  # isVirtual=True, iface='enp0s25')
+        tunTap.createTunTapAdapter(name=name, ipAddress=ipAddr)
+        tunTap.openTunTap()
+        wx.CallAfter(self.finishCreatingTunTap, tunTap = tunTap)
+
     def _scan(self):
         hosts = API.AtumsoftUtils.findHosts(self.networkIfaceIP)
         wx.CallAfter(self.returnHosts, hosts=hosts)
