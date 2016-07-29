@@ -24,7 +24,7 @@ class DiagController:
     def update(self, event=None):
         curVal = self.window.txtOutput.GetValue()
         curPos = self.window.txtOutput.GetScrollPos(wx.VERTICAL)
-        if curVal == self.stdout.getvalue: return
+        if curVal == self.stdout.getvalue(): return
         self.window.txtOutput.SetValue(self.stdout.getvalue())
         self.window.txtOutput.ScrollLines(curPos)
 

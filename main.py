@@ -1,9 +1,8 @@
-from mainController import Controller
+from systray import TaskBarIcon
 import wx
 
 
 if __name__ == '__main__':
     app = wx.App()
-    program = Controller()
-    program.show()
+    program = TaskBarIcon()
     app.MainLoop()

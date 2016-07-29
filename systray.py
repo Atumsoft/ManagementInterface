@@ -1,7 +1,9 @@
 import wx
 import images
 
-TRAY_TOOLTIP = 'System Tray Demo'
+from mainController import Controller
+
+TRAY_TOOLTIP = 'Atumsoft Bridge Software'
 
 
 def create_menu_item(menu, label, func):
@@ -14,15 +16,17 @@ def create_menu_item(menu, label, func):
 class TaskBarIcon(wx.TaskBarIcon):
     def __init__(self):
         super(TaskBarIcon, self).__init__()
+        self.mainWindow = Controller()
+        self.mainWindow.show()
         self.icon = wx.BitmapFromImage(images.getLogoImage())
         self.set_icon(self.icon)
         self.Bind(wx.EVT_TASKBAR_LEFT_DOWN, self.on_left_down)
 
     def CreatePopupMenu(self):
         menu = wx.Menu()
-        create_menu_item(menu, 'Say Hello', self.on_hello)
+        create_menu_item(menu, 'Show Window', self.onShow)
         menu.AppendSeparator()
-        create_menu_item(menu, 'Exit', self.on_exit)
+        create_menu_item(menu, 'Exit', self.onExit)
         return menu
 
     def set_icon(self, path):
@@ -30,12 +34,13 @@ class TaskBarIcon(wx.TaskBarIcon):
         self.SetIcon(icon, TRAY_TOOLTIP)
 
     def on_left_down(self, event):
-        print 'Tray icon was left-clicked.'
+        pass
+        event.Skip()
 
-    def on_hello(self, event):
-        print 'Hello, world!'
-
-    def on_exit(self, event):
+    def onShow(self, event):
+        self.mainWindow.show()
+    def onExit(self, event):
+        self.mainWindow.destroy()
         wx.CallAfter(self.Destroy)
 
 def main():

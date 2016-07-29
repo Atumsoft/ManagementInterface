@@ -43,6 +43,7 @@ class Controller:
         self.mainWindow.Bind(wx.EVT_BUTTON, self.createNewAdapter, self.mainWindow.btnCreate)
         self.mainWindow.Bind(wx.EVT_BUTTON, self.scan, self.mainWindow.btnRefresh)
         self.mainWindow.Bind(wx.EVT_CONTEXT_MENU, self.onRClick, self.mainWindow.lstDevices)
+        self.mainWindow.Bind(wx.EVT_CLOSE, self.onClose)
 
         # class vars
         self.scanning = False
@@ -61,6 +62,12 @@ class Controller:
 
     def show(self):
         self.mainWindow.Show()
+
+    def destroy(self):
+        self.mainWindow.Destroy()
+
+    def onClose(self, event):
+        self.mainWindow.Hide()
 
     def showDiag(self, event):
         dlg = DiagController(mystdout,self.mainWindow)
@@ -110,12 +117,13 @@ class Controller:
             print 'data: %s' % data
 
             r = requests.post('http://%s:5000/connect' % remoteHost, data=json.dumps(data))
-            if r.status_code != 200: print 'error connecting to host at: %s' % remoteHost; return
+            if r.status_code != 200: print 'error connecting to host at: %s' % remoteHost#; return
 
             info = requests.get('http://%s:5000/getinfo' % remoteHost)
             info = ast.literal_eval(info.json())
             print info
             print remoteHost
+            API.AtumsoftServer.socketRun()
             thread.start_new_thread(self._startCapturing, (virtualAdapter, info, remoteHost))
 
     def update(self, event):
@@ -194,13 +202,16 @@ class Controller:
             self.adapterNameDict[name] = True
 
     def finishCreatingTunTap(self, tunTap):
-        self.tunTapDict[self.mainWindow.lstAdapters.GetItemCount()] = tunTap
+        self.tunTapDict[self.mainWindow.lstAdapters.GetItemCount()-1] = tunTap
+        # for some reason, windows closes tunTap devices on creation of a new device...
+        # for tunTapDev in self.tunTapDict.values():
+        #     tunTapDev.openTunTap()
         self.mainWindow.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))
 
     # Separate thread funcs --------------------------------------------------------------------------------------------
     def _createTunTap(self, name, ipAddr):
         tunTap = API.AtumsoftGeneric.AtumsoftGeneric()  # isVirtual=True, iface='enp0s25')
-        tunTap.createTunTapAdapter(name=name, ipAddress=ipAddr)
+        tunTap.createTunTapAdapter(name=name, ipAddress=ipAddr, existingNameList=self.adapterNameDict.keys())
         tunTap.openTunTap()
         wx.CallAfter(self.finishCreatingTunTap, tunTap = tunTap)
 
@@ -229,7 +240,6 @@ def checkForAdmin():
 
 
 def runAsAdmin(cmdLine=None, wait=True):
-
     if os.name != 'nt':
         raise RuntimeError, "This function is only implemented on Windows."
 
