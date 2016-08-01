@@ -1,8 +1,6 @@
 import ast
-import ctypes
 import json
-import os
-import socket
+
 
 import thread
 
@@ -56,9 +54,6 @@ class Controller:
 
         # dictionaries to make sure names are unique
         self.adapterNameDict = {}
-
-        # needs to be run as admin if not already
-        checkForAdmin()
 
     def show(self):
         self.mainWindow.Show()
@@ -114,10 +109,10 @@ class Controller:
             remoteHost = self.hostsDict[currentItem]['hostIP']
             virtualAdapter = self.tunTapDict[virtualAdapterIndex]
             data = virtualAdapter.adapterInfo
-            print 'data: %s' % data
+            print 'data: %s' % remoteHost
 
             r = requests.post('http://%s:5000/connect' % remoteHost, data=json.dumps(data))
-            if r.status_code != 200: print 'error connecting to host at: %s' % remoteHost#; return
+            if r.status_code != 200: print 'error connecting to host at: %s\nStatus Code %s' % (remoteHost, r.status_code); return
 
             info = requests.get('http://%s:5000/getinfo' % remoteHost)
             info = ast.literal_eval(info.json())
@@ -159,22 +154,22 @@ class Controller:
         # parse host data
         # FIXME: code set up for assuming only one virtual adapter on remote at the moment
         print hosts
-        remoteIP = hosts.keys()[0]
-        virtualIP = hosts.values()[0].values()[0].keys()[0]
-        virtualMAC = hosts.values()[0].values()[0].values()[0]
+        for index, remoteIP in enumerate(hosts.keys()):
+            virtualIP = hosts.values()[index].values()[0].keys()[0]
+            virtualMAC = hosts.values()[index].values()[0].values()[0]
 
-        # Add host to list
-        index = self.mainWindow.lstDevices.GetItemCount()
-        self.mainWindow.lstDevices.InsertStringItem(index, remoteIP)
-        self.mainWindow.lstDevices.SetStringItem(index, 1, virtualIP)
-        self.mainWindow.lstDevices.SetStringItem(index, 2, virtualMAC)
+            # Add host to list
+            index = self.mainWindow.lstDevices.GetItemCount()
+            self.mainWindow.lstDevices.InsertStringItem(index, remoteIP)
+            self.mainWindow.lstDevices.SetStringItem(index, 1, virtualIP)
+            self.mainWindow.lstDevices.SetStringItem(index, 2, virtualMAC)
 
-        # add host to dict
-        self.hostsDict[index] = {
-            'hostIP'    : remoteIP,
-            'virtualIP' : virtualIP,
-            'virtualMAC': virtualMAC,
-        }
+            # add host to dict
+            self.hostsDict[index] = {
+                'hostIP'    : remoteIP,
+                'virtualIP' : virtualIP,
+                'virtualMAC': virtualMAC,
+            }
 
     def createNewAdapter(self, event):
         addDevicedlg = AddController(self.adapterNameDict, self.mainWindow)
@@ -221,67 +216,3 @@ class Controller:
 
     def _startCapturing(self, virtualAdapter, info, host):
         virtualAdapter.startCapture(activeHosts={host: {'address': info}})
-
-
-# Helper functions to check for admin privileges on run ================================================================
-def checkForAdmin():
-    try:
-        is_admin = os.getuid() == 0
-        if not is_admin:
-            print "Script not started as root. Running sudo.."
-            args = ['sudo', sys.executable] + sys.argv + [os.environ]
-            # the next line replaces the currently-running process with the sudo
-            os.execlpe('gksudo', *args)
-
-    except AttributeError:
-        is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
-        if not is_admin:
-            runAsAdmin()
-
-
-def runAsAdmin(cmdLine=None, wait=True):
-    if os.name != 'nt':
-        raise RuntimeError, "This function is only implemented on Windows."
-
-    import win32api, win32con, win32event, win32process
-    from win32com.shell.shell import ShellExecuteEx
-    from win32com.shell import shellcon
-
-    python_exe = sys.executable
-
-    if cmdLine is None:
-        cmdLine = [python_exe] + sys.argv
-    elif type(cmdLine) not in (types.TupleType,types.ListType):
-        raise ValueError, "cmdLine is not a sequence."
-    cmd = '"%s"' % (cmdLine[0],)
-    params = " ".join(['"%s"' % (x,) for x in cmdLine[1:]])
-    cmdDir = ''
-    showCmd = win32con.SW_SHOWNORMAL
-    #showCmd = win32con.SW_HIDE
-    lpVerb = 'runas'  # causes UAC elevation prompt.
-
-    # print "Running", cmd, params
-
-    # ShellExecute() doesn't seem to allow us to fetch the PID or handle
-    # of the process, so we can't get anything useful from it. Therefore
-    # the more complex ShellExecuteEx() must be used.
-
-    # procHandle = win32api.ShellExecute(0, lpVerb, cmd, params, cmdDir, showCmd)
-
-    procInfo = ShellExecuteEx(nShow=showCmd,
-                              fMask=shellcon.SEE_MASK_NOCLOSEPROCESS,
-                              lpVerb=lpVerb,
-                              lpFile=cmd,
-                              lpParameters=params)
-
-    if wait:
-        procHandle = procInfo['hProcess']
-        obj = win32event.WaitForSingleObject(procHandle, win32event.INFINITE)
-        rc = win32process.GetExitCodeProcess(procHandle)
-        #print "Process handle %s returned code %s" % (procHandle, rc)
-    else:
-        rc = None
-
-    exit()
-
-    return rc
