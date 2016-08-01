@@ -103,7 +103,10 @@ class ConnectDialog(wx.Dialog):
         self.lstAdapters = wx.ListCtrl(self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, wx.LC_REPORT)
         bSizer7.Add(self.lstAdapters, 1, wx.ALL | wx.EXPAND, 5)
 
-        gSizer1 = wx.GridSizer(0, 2, 0, 0)
+        gSizer1 = wx.GridSizer(0, 3, 0, 0)
+
+        self.btnGenerate = wx.Button(self, wx.ID_OPEN, u"Create Adapter", wx.DefaultPosition, wx.DefaultSize, 0)
+        gSizer1.Add(self.btnGenerate, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 5)
 
         self.btnOK = wx.Button(self, wx.ID_OK, u"OK", wx.DefaultPosition, wx.DefaultSize, 0)
         gSizer1.Add(self.btnOK, 0, wx.ALL | wx.ALIGN_RIGHT, 5)
@@ -120,5 +123,4 @@ class ConnectDialog(wx.Dialog):
 
     def __del__(self):
         pass
-
 

@@ -78,3 +78,15 @@ class AddController:
 
         else:
             event.Skip()
+
+class ConnectController:
+    def __init__(self, *args, **kwargs):
+        self.window = ConnectDialog( *args, **kwargs)
+        self.lstAdapters = self.window.lstAdapters
+        self.window.Bind(wx.EVT_BUTTON, self.generate, self.window.btnGenerate)
+
+    def ShowModal(self, *args, **kwargs):
+        return self.window.ShowModal()
+
+    def generate(self, event):
+        return self.window.EndModal(wx.ID_OPEN)

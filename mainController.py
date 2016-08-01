@@ -1,13 +1,13 @@
 import ast
 import json
-
+import random
 
 import thread
 
 import subprocess
 
 from mainView import MainFrame
-from CustomControlls import DiagController, AddController, ConnectDialog
+from CustomControlls import DiagController, AddController, ConnectController
 
 from cStringIO import StringIO
 import sys
@@ -86,7 +86,7 @@ class Controller:
 
     def onConnectClicked(self, event):
         currentItem = self.mainWindow.lstDevices.GetNextSelected(-1)
-        dlg = ConnectDialog(self.mainWindow)
+        dlg = ConnectController(self.mainWindow)
 
         dlg.lstAdapters.InsertColumn(0, 'Number', width=35)
         dlg.lstAdapters.InsertColumn(1, 'Name', width=100)
@@ -104,10 +104,18 @@ class Controller:
             dlg.lstAdapters.SetItem(itemList[2])
             dlg.lstAdapters.SetItem(itemList[3])
 
-        if dlg.ShowModal() == wx.ID_OK:
-            virtualAdapterIndex = dlg.lstAdapters.GetNextSelected(-1)
+        shownID = dlg.ShowModal()
+        if shownID != wx.ID_CANCEL:
+            if shownID == wx.ID_OPEN:
+                self.createNewAdapter(generate=self.hostsDict[currentItem]['virtualIP'])
+                print self.tunTapDict
+                virtualAdapter = self.tunTapDict[len(self.tunTapDict)-1]
+
+            elif shownID == wx.ID_OK:
+                virtualAdapterIndex = dlg.lstAdapters.GetNextSelected(-1)
+                virtualAdapter = self.tunTapDict[virtualAdapterIndex]
+
             remoteHost = self.hostsDict[currentItem]['hostIP']
-            virtualAdapter = self.tunTapDict[virtualAdapterIndex]
             data = virtualAdapter.adapterInfo
             print 'data: %s' % remoteHost
 
@@ -118,7 +126,7 @@ class Controller:
             info = ast.literal_eval(info.json())
             print info
             print remoteHost
-            API.AtumsoftServer.socketRun()
+            API.AtumsoftServer.socketRun(remoteHost)
             thread.start_new_thread(self._startCapturing, (virtualAdapter, info, remoteHost))
 
     def update(self, event):
@@ -171,30 +179,47 @@ class Controller:
                 'virtualMAC': virtualMAC,
             }
 
-    def createNewAdapter(self, event):
+    def createNewAdapter(self, event=None, generate=''):
         addDevicedlg = AddController(self.adapterNameDict, self.mainWindow)
-        if addDevicedlg.ShowModal() == wx.ID_OK:
-            ipAddr = addDevicedlg.window.txtIP.GetValue()
-            name = addDevicedlg.window.txtName.GetValue()
 
-            # if this is the first adapter, make sure no other virtuals exist (potentially from a bad shutdown):
-            if not self.tunTapDict:
-                command = API.AtumsoftWindows.REMOVE_ALL_TAP_COMMAND
-                proc = subprocess.Popen(command, stdout=subprocess.PIPE)
-                print proc.communicate()[0]
+        if generate:
+            # generate a random IP address in the same subnet as the detected device
+            ipAddrList = generate.split('.')
+            ipToChange = int(ipAddrList.pop(3))
+            allowedValues = range(0,255)
+            allowedValues.remove(ipToChange)
+            newIP = random.choice(allowedValues)
 
-            # create device
-            self.mainWindow.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
-            thread.start_new_thread(self._createTunTap, (name, ipAddr))
+            ipAddrList.append(str(newIP))
+            ipAddr = '.'.join(ipAddrList)
+            name = 'adapter' + str(len(self.tunTapDict))
+        else:
+            shownID = addDevicedlg.ShowModal()
+            if shownID == wx.ID_OK:
+                ipAddr = addDevicedlg.window.txtIP.GetValue()
+                name = addDevicedlg.window.txtName.GetValue()
+            elif shownID == wx.ID_CANCEL:
+                return
 
-            # add to list
-            index = self.mainWindow.lstAdapters.GetItemCount()
-            self.mainWindow.lstAdapters.InsertStringItem(index, str(index+1))
-            self.mainWindow.lstAdapters.SetStringItem(index, 1, name)
-            self.mainWindow.lstAdapters.SetStringItem(index, 2, ipAddr)
-            self.mainWindow.lstAdapters.SetStringItem(index, 3, 'False')
+        # if this is the first adapter, make sure no other virtuals exist (potentially from a bad shutdown):
+        if not self.tunTapDict:
+            command = API.AtumsoftWindows.REMOVE_ALL_TAP_COMMAND
+            proc = subprocess.Popen(command, stdout=subprocess.PIPE)
+            print proc.communicate()[0]
 
-            self.adapterNameDict[name] = True
+        # create device
+        self.mainWindow.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
+        # thread.start_new_thread(self._createTunTap, (name, ipAddr)) # want this to be blocking for the moment
+
+        # add to list
+        index = self.mainWindow.lstAdapters.GetItemCount()
+        self.mainWindow.lstAdapters.InsertStringItem(index, str(index+1))
+        self.mainWindow.lstAdapters.SetStringItem(index, 1, name)
+        self.mainWindow.lstAdapters.SetStringItem(index, 2, ipAddr)
+        self.mainWindow.lstAdapters.SetStringItem(index, 3, 'False')
+
+        self.adapterNameDict[name] = True
+        self._createTunTap(name, ipAddr)
 
     def finishCreatingTunTap(self, tunTap):
         self.tunTapDict[self.mainWindow.lstAdapters.GetItemCount()-1] = tunTap
@@ -208,7 +233,8 @@ class Controller:
         tunTap = API.AtumsoftGeneric.AtumsoftGeneric()  # isVirtual=True, iface='enp0s25')
         tunTap.createTunTapAdapter(name=name, ipAddress=ipAddr, existingNameList=self.adapterNameDict.keys())
         tunTap.openTunTap()
-        wx.CallAfter(self.finishCreatingTunTap, tunTap = tunTap)
+        # wx.CallAfter(self.finishCreatingTunTap, tunTap = tunTap)
+        self.finishCreatingTunTap(tunTap)
 
     def _scan(self):
         hosts = API.AtumsoftUtils.findHosts(self.networkIfaceIP)
