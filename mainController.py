@@ -15,6 +15,7 @@ import wx
 import API
 import threading
 import requests
+import _winreg as wr
 
 sys.stdout = mystdout = StringIO()
 
@@ -228,11 +229,37 @@ class Controller:
         #     tunTapDev.openTunTap()
         self.mainWindow.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))
 
+    def get_driver_name_from_guid(self, iface_guids):
+        # iface_names = ['(unknown)' for i in range(len(iface_guids))]
+        ifaceNameDict = {}
+        reg = wr.ConnectRegistry(None, wr.HKEY_LOCAL_MACHINE)
+        reg_key = wr.OpenKey(reg, r'SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}')
+        for i in range(wr.QueryInfoKey(reg_key)[0]):
+            subkey_name = wr.EnumKey(reg_key, i)
+            try:
+                reg_subkey = wr.OpenKey(reg_key, subkey_name)
+                guid = wr.QueryValueEx(reg_subkey, 'NetCfgInstanceId')[0]
+                try:
+                    idx = iface_guids.index(guid)
+                    ifaceNameDict[wr.QueryValueEx(reg_subkey, 'DriverDesc')[0]] = idx
+                except ValueError:
+                    pass
+            except Exception, e:
+                print e.message
+
+        return ifaceNameDict
+
     # Separate thread funcs --------------------------------------------------------------------------------------------
     def _createTunTap(self, name, ipAddr):
         tunTap = API.AtumsoftGeneric.AtumsoftGeneric()  # isVirtual=True, iface='enp0s25')
         tunTap.createTunTapAdapter(name=name, ipAddress=ipAddr, existingNameList=self.adapterNameDict.keys())
         tunTap.openTunTap()
+        for othertap in self.tunTapDict.values():
+            try:
+                othertap.openTunTap()
+            except:
+                pass
+
         # wx.CallAfter(self.finishCreatingTunTap, tunTap = tunTap)
         self.finishCreatingTunTap(tunTap)
 
