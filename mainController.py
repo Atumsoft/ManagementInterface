@@ -48,6 +48,7 @@ class Controller:
         self.scanning = False
         self.tunTapDict = {}
         self.hostsDict = {}
+        self.RunningSocketList = []
 
         # networking vars
         self.networkGatewayIP, self.networkIface = API.AtumsoftUtils.findGateWay()
@@ -113,12 +114,16 @@ class Controller:
                 virtualAdapter = self.tunTapDict[len(self.tunTapDict)-1]
 
             elif shownID == wx.ID_OK:
-                virtualAdapterIndex = dlg.lstAdapters.GetNextSelected(-1)
-                virtualAdapter = self.tunTapDict[virtualAdapterIndex]
+                virtualAdapterIndex = dlg.selectedIndex
+                virtualAdapter = self.tunTapDict.get(virtualAdapterIndex)
 
             remoteHost = self.hostsDict[currentItem]['hostIP']
-            data = virtualAdapter.adapterInfo
-            print 'data: %s' % remoteHost
+            data = {virtualAdapter.ipAddress: virtualAdapter.macAddress}
+            # print 'data: %s' % remoteHost
+
+            port = 6000 + len(self.RunningSocketList)
+            data.update({'port': port})
+            print port, data
 
             r = requests.post('http://%s:5000/connect' % remoteHost, data=json.dumps(data))
             if r.status_code != 200: print 'error connecting to host at: %s\nStatus Code %s' % (remoteHost, r.status_code); return
@@ -127,7 +132,12 @@ class Controller:
             info = ast.literal_eval(info.json())
             print info
             print remoteHost
-            API.AtumsoftServer.socketRun(remoteHost)
+            sock = API.AtumsoftServer.Atumsock(port)
+            sock.socketRun(remoteHost)
+            self.RunningSocketList.append(sock)
+            print self.RunningSocketList
+            print [port.port for port in self.RunningSocketList]
+            # API.AtumsoftServer.socketRun(remoteHost)
             thread.start_new_thread(self._startCapturing, (virtualAdapter, info, remoteHost))
 
     def update(self, event):
@@ -254,6 +264,7 @@ class Controller:
         tunTap = API.AtumsoftGeneric.AtumsoftGeneric()  # isVirtual=True, iface='enp0s25')
         tunTap.createTunTapAdapter(name=name, ipAddress=ipAddr, existingNameList=self.adapterNameDict.keys())
         tunTap.openTunTap()
+        API.AtumsoftServer.NumberOfServers += 1
         for othertap in self.tunTapDict.values():
             try:
                 othertap.openTunTap()
