@@ -140,12 +140,15 @@ class Controller:
 
     def scan(self, event):
         if not self.scanning:
+            self.mainWindow.lstDevices.DeleteAllItems()
+
             self.scanning = True
             self.mainWindow.statusBar1.SetStatusText('scanning', 2)
             self.scanThread = threading.Thread(target=self._scan)
             self.scanThread.setDaemon(True)
             self.scanThread.start()
             self.mainWindow.btnRefresh.SetLabel('Stop Scan')
+
         else:
             self.scanning = False
             self.mainWindow.statusBar1.SetStatusText('', 2)
@@ -264,7 +267,7 @@ class Controller:
         self.finishCreatingTunTap(tunTap)
 
     def _scan(self):
-        hosts = API.AtumsoftUtils.findHosts(self.networkIfaceIP)
+        hosts = API.AtumsoftUtils.findDevices([adapter.adapterInfo for adapter in self.tunTapDict.keys()])
         wx.CallAfter(self.returnHosts, hosts=hosts)
 
     def _startCapturing(self, virtualAdapter, info, host):
