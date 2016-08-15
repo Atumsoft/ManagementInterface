@@ -84,9 +84,15 @@ class ConnectController:
         self.window = ConnectDialog( *args, **kwargs)
         self.lstAdapters = self.window.lstAdapters
         self.window.Bind(wx.EVT_BUTTON, self.generate, self.window.btnGenerate)
+        self.window.Bind(wx.EVT_LIST_ITEM_SELECTED, self.onClick, self.lstAdapters)
+
+        self.selectedIndex = 0
 
     def ShowModal(self, *args, **kwargs):
         return self.window.ShowModal()
 
     def generate(self, event):
         return self.window.EndModal(wx.ID_OPEN)
+
+    def onClick(self, event):
+        self.selectedIndex = self.lstAdapters.GetNextSelected(-1)
