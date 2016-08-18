@@ -2,8 +2,8 @@ import subprocess
 import re
 
 
-INTERFACE_NUMBER_EXPR = r'[0-9]+'
-TAPDEV_NUMBER_EXPR = r'TAP-Windows Adapter.*'
+INTERFACE_NUMBER_EXPR = re.compile(r'[0-9]+')
+TAPDEV_NUMBER_EXPR = re.compile(r'TAP-Windows Adapter.*')
 
 def spliceRouteTable():
     proc = subprocess.Popen('route print', stdout=subprocess.PIPE)
