@@ -22,8 +22,7 @@ def spliceRouteTable():
                 tapDevNum = int(match.strip()[-1])
 
             tapDevNumDict[tapDevNum] = ifNum
-    print tapDevNumDict
     return tapDevNumDict
 
 if __name__ == '__main__':
-    spliceRouteTable()
+   print spliceRouteTable()
