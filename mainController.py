@@ -6,6 +6,7 @@ import thread
 
 import subprocess
 
+import time
 from mainView import MainFrame
 from CustomControlls import DiagController, AddController, ConnectController
 
@@ -16,6 +17,8 @@ import API
 import threading
 import requests
 import _winreg as wr
+
+import routesplice
 
 sys.stdout = mystdout = StringIO()
 
@@ -48,6 +51,7 @@ class Controller:
         self.scanning = False
         self.tunTapDict = {}
         self.hostsDict = {}
+        self.usedPorts = []
         self.RunningSocketList = []
 
         # networking vars
@@ -56,6 +60,8 @@ class Controller:
 
         # dictionaries to make sure names are unique
         self.adapterNameDict = {}
+
+        thread.start_new_thread(API.AtumsoftServer.runConnectionServer, tuple(),{'runSocketServeronStart':True})
 
     def show(self):
         self.mainWindow.Show()
@@ -121,24 +127,35 @@ class Controller:
             data = {virtualAdapter.ipAddress: virtualAdapter.macAddress}
             # print 'data: %s' % remoteHost
 
-            port = 6000 + len(self.RunningSocketList)
+            port = 6000 + (len(self.RunningSocketList)*10)
+            self.RunningSocketList.append(port)
             data.update({'port': port})
-            print port, data
 
             r = requests.post('http://%s:5000/connect' % remoteHost, data=json.dumps(data))
             if r.status_code != 200: print 'error connecting to host at: %s\nStatus Code %s' % (remoteHost, r.status_code); return
 
             info = requests.get('http://%s:5000/getinfo' % remoteHost)
-            info = ast.literal_eval(info.json())
-            print info
-            print remoteHost
-            sock = API.AtumsoftServer.Atumsock(port)
-            sock.socketRun(remoteHost)
-            self.RunningSocketList.append(sock)
-            print self.RunningSocketList
-            print [port.port for port in self.RunningSocketList]
-            # API.AtumsoftServer.socketRun(remoteHost)
-            thread.start_new_thread(self._startCapturing, (virtualAdapter, info, remoteHost))
+            info = info.json()
+
+
+            # r = requests.post('http://%s:5000/openSocket' % remoteHost, data=str(newPort))
+            # if r.status_code != 200: print 'error opening socket at address (%s, %s)' % (remoteHost, newPort)
+
+            thread.start_new_thread(self._startCapturing, (virtualAdapter, info, remoteHost, port))
+
+            # do windows routing commands for ips on same subnet
+            time.sleep(5) # have to wait for windows to self populate routing table...
+            tapDevNumDict = routesplice.spliceRouteTable()
+            ifNum = tapDevNumDict.get(len(self.RunningSocketList))
+
+            ipList = virtualAdapter.ipAddress.split('.')
+            ipList[3] = '0'
+            gateWayIP = '.'.join(ipList)
+            cleanupCommand = 'route delete %s' % gateWayIP
+            subprocess.call(cleanupCommand)
+
+            addCommand = 'route add %s mask 255.255.255.255 0.0.0.0 if %s' % (info.keys()[0], ifNum)
+            subprocess.call(addCommand)
 
     def update(self, event):
         if not self.scanning: return
@@ -175,10 +192,10 @@ class Controller:
 
         # parse host data
         # FIXME: code set up for assuming only one virtual adapter on remote at the moment
-        print hosts
+        print 'hosts found: %s' % hosts
         for index, remoteIP in enumerate(hosts.keys()):
-            virtualIP = hosts.values()[index].values()[0].keys()[0]
-            virtualMAC = hosts.values()[index].values()[0].values()[0]
+            virtualIP = hosts[remoteIP].keys()[0]
+            virtualMAC = hosts[remoteIP][virtualIP]
 
             # Add host to list
             index = self.mainWindow.lstDevices.GetItemCount()
@@ -267,7 +284,6 @@ class Controller:
         tunTap = API.AtumsoftGeneric.AtumsoftGeneric()  # isVirtual=True, iface='enp0s25')
         tunTap.createTunTapAdapter(name=name, ipAddress=ipAddr, existingNameList=self.adapterNameDict.keys())
         tunTap.openTunTap()
-        API.AtumsoftServer.NumberOfServers += 1
         for othertap in self.tunTapDict.values():
             try:
                 othertap.openTunTap()
@@ -281,5 +297,5 @@ class Controller:
         hosts = API.AtumsoftUtils.findDevices([adapter.adapterInfo for adapter in self.tunTapDict.keys()])
         wx.CallAfter(self.returnHosts, hosts=hosts)
 
-    def _startCapturing(self, virtualAdapter, info, host):
-        virtualAdapter.startCapture(activeHosts={host: {'address': info}})
+    def _startCapturing(self, virtualAdapter, info, host, port):
+        virtualAdapter.startCapture(activeHosts={host: {'address': info}}, port=port)
